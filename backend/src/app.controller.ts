@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { BadRequestException, Controller, Delete, Get, Param } from '@nestjs/common';
 import { AppService } from './app.service';
 import { authenticate } from '@google-cloud/local-auth'
 import { google } from 'googleapis';
@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as fs from 'fs/promises';
 import { OAuth2Client } from 'google-auth-library';
 
-const SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly'];
+const SCOPES = ['https://www.googleapis.com/auth/drive'];
 const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json');
 const TOKEN_PATH = path.join(process.cwd(), 'token.json');
 
@@ -31,14 +31,26 @@ export class AppController {
     return client;
   }
 
-  @Get('list')
-  async list() {
+  @Get('files')
+  async files() {
     const client: any = await this.loadSavedCredentialsIfExist();
     const drive = google.drive({version: 'v3', auth: client});
     const res = await drive.files.list({
-      fields: 'nextPageToken, files(id,name,createdTime,modifiedTime,size)',
+      fields: 'nextPageToken, files(id,name,createdTime,modifiedTime,size,kind,description,webViewLink,iconLink,thumbnailLink)',
     });
     return res.data.files;
+  }
+
+  @Delete('files/:id')
+  async delete(@Param('id') id: string) {
+    try {
+      const client: any = await this.loadSavedCredentialsIfExist();
+      const drive = google.drive({version: 'v3', auth: client});
+      await drive.files.delete({fileId: id})
+      return id; 
+    } catch ({errors}) {
+      throw new BadRequestException(errors[0].message);
+    }
   }
 
     /**

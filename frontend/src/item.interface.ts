@@ -4,4 +4,5 @@ export interface Item {
     size: string;
     createdTime: string;
     modifiedTime: string;
+    webViewLink: string;
 }
