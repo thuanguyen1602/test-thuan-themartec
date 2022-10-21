@@ -1,11 +1,14 @@
-import { BadRequestException, Controller, Delete, Get, Param } from '@nestjs/common';
+import { BadRequestException, Controller, Delete, Get, Param, UseInterceptors, Post, UploadedFile } from '@nestjs/common';
 import { AppService } from './app.service';
 import { authenticate } from '@google-cloud/local-auth'
 import { google } from 'googleapis';
+import { Express } from 'express';
 
 import * as path from 'path';
 import * as fs from 'fs/promises';
+import * as fsN from 'fs';
 import { OAuth2Client } from 'google-auth-library';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 const SCOPES = ['https://www.googleapis.com/auth/drive'];
 const CREDENTIALS_PATH = path.join(process.cwd(), 'credentials.json');
@@ -29,6 +32,32 @@ export class AppController {
       await this.saveCredentials(client);
     }
     return client;
+  }
+
+  @Post('upload')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadFile(@UploadedFile() file: Express.Multer.File) {
+    const rootPath = path.join(__dirname, '../').replace(/\\/g, '/');
+
+    const client: any = await this.loadSavedCredentialsIfExist();
+    const drive = google.drive({version: 'v3', auth: client});
+    fsN.writeFileSync(`${rootPath}${file.originalname}`, file.buffer)
+    
+    const fileMetadata = {
+      name: file.originalname,
+      mimeType: file.mimetype,
+    };
+    const media = {
+      mimeType: file.mimetype,
+      body: fsN.createReadStream(`${rootPath}${file.originalname}`),
+    };
+    const result = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id',
+    });
+    fsN.unlinkSync(`${rootPath}${file.originalname}`)
+    return result;
   }
 
   @Get('files')
